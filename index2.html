@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Labirent Robot Oyun</title>
+    <style>
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: radial-gradient(circle at top, #fce4ff 0%, #e0c4ff 50%, #b39ddb 100%);
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        /* Kazanma ekranı: yazısız, sadece emoji */
+        #winOverlay {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: min(22vw, 140px);
+            backdrop-filter: blur(4px);
+            background: rgba(0, 0, 0, 0.35);
+            color: #ffeb3b;
+            text-shadow: 0 0 20px rgba(255, 255, 255, 0.9);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            z-index: 10;
+        }
+
+        #winOverlay.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* Ekranın altında büyük ok ikonları (okuma bilmeyen çocuklar için) */
+        #touchControls {
+            position: fixed;
+            bottom: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 12px;
+            z-index: 5;
+        }
+
+        .btn-arrow {
+            width: 60px;
+            height: 60px;
+            border-radius: 18px;
+            border: none;
+            background: radial-gradient(circle at 30% 20%, #ffffff 0%, #d1c4e9 60%, #9575cd 100%);
+            box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 34px;
+            cursor: pointer;
+            user-select: none;
+            touch-action: none;
+        }
+
+        .btn-arrow:active {
+            transform: translateY(2px) scale(0.97);
+            box-shadow: 0 3px 7px rgba(0, 0, 0, 0.4);
+        }
+
+        @media (max-width: 600px) {
+            .btn-arrow {
+                width: 52px;
+                height: 52px;
+                font-size: 30px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Kazanma ekranı (sadece emoji) -->
+    <div id="winOverlay">🎉</div>
+
+    <!-- Dokunmatik ok butonları (mobil / okuma bilmeyen çocuk) -->
+    <div id="touchControls">
+        <button class="btn-arrow" data-dir="up">⬆️</button>
+        <button class="btn-arrow" data-dir="left">⬅️</button>
+        <button class="btn-arrow" data-dir="down">⬇️</button>
+        <button class="btn-arrow" data-dir="right">➡️</button>
+    </div>
+
+    <script type="module">
+        import * as THREE from "https://unpkg.com/three@0.161.0/build/three.module.js";
+
+        let scene, camera, renderer;
+        let labyrinthGroup, board, ball;
+        let ballVelocity = new THREE.Vector3();
+        const ballRadius = 0.25;
+        const boardRadius = 4;
+        const tiltLimit = 0.4;      // maksimum eğim (radyan)
+        const tiltSpeed = 0.01;     // klavye / dokunmatik eğim hızı
+        const gravity = 0.03;       // eğime göre ivme
+        const friction = 0.99;      // sürtünme
+        let tiltX = 0;
+        let tiltZ = 0;
+        let gameWon = false;
+
+        const keys = {
+            ArrowUp: false,
+            ArrowDown: false,
+            ArrowLeft: false,
+            ArrowRight: false
+        };
+
+        const winOverlay = document.getElementById("winOverlay");
+
+        init();
+        animate();
+
+        function init() {
+            scene = new THREE.Scene();
+
+            // Kamera
+            camera = new THREE.PerspectiveCamera(
+                45,
+                window.innerWidth / window.innerHeight,
+                0.1,
+                100
+            );
+            camera.position.set(0, 8, 9);
+            camera.lookAt(0, 0, 0);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.body.appendChild(renderer.domElement);
+
+            // Işıklar
+            const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambient);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+            dirLight.position.set(5, 10, 7);
+            scene.add(dirLight);
+
+            // Hafif mor yer zemini
+            const floorGeo = new THREE.PlaneGeometry(20, 20);
+            const floorMat = new THREE.MeshStandardMaterial({
+                color: 0xe1bee7,
+                roughness: 0.9,
+                metalness: 0.0
+            });
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            floor.position.y = -0.6;
+            scene.add(floor);
+
+            // Labirent grubu (platform + bilye birlikte dönecek)
+            labyrinthGroup = new THREE.Group();
+            scene.add(labyrinthGroup);
+
+            // Tahta dairesel platform (labirent tablası)
+            const boardGeo = new THREE.CylinderGeometry(boardRadius, boardRadius, 0.4, 64);
+            const boardMat = new THREE.MeshStandardMaterial({
+                color: 0x8d6e63,
+                roughness: 0.8,
+                metalness: 0.1
+            });
+            board = new THREE.Mesh(boardGeo, boardMat);
+            board.rotation.x = -Math.PI / 2; // üst yüzey yukarı baksın
+            labyrinthGroup.add(board);
+
+            // Dekoratif halka çizgileri (labirent hissi için, fizik yok)
+            const ringMat = new THREE.MeshStandardMaterial({
+                color: 0x5d4037,
+                roughness: 0.6,
+                metalness: 0.2
+            });
+            for (let i = 1; i <= 3; i++) {
+                const r = (boardRadius * i) / 4;
+                const ringGeo = new THREE.TorusGeometry(r, 0.04, 8, 100);
+                const ring = new THREE.Mesh(ringGeo, ringMat);
+                ring.rotation.x = Math.PI / 2;
+                ring.position.y = 0.21;
+                labyrinthGroup.add(ring);
+            }
+
+            // Hedef (merkezde parlayan nokta)
+            const targetGeo = new THREE.CylinderGeometry(0.35, 0.35, 0.1, 32);
+            const targetMat = new THREE.MeshStandardMaterial({
+                color: 0xffee58,
+                emissive: 0xfff176,
+                emissiveIntensity: 0.8,
+                roughness: 0.4,
+                metalness: 0.3
+            });
+            const target = new THREE.Mesh(targetGeo, targetMat);
+            target.rotation.x = -Math.PI / 2;
+            target.position.y = 0.26;
+            labyrinthGroup.add(target);
+
+            // Bilye
+            const ballGeo = new THREE.SphereGeometry(ballRadius, 32, 32);
+            const ballMat = new THREE.MeshStandardMaterial({
+                color: 0xede7f6,
+                metalness: 0.9,
+                roughness: 0.2,
+                emissive: 0x7e57c2,
+                emissiveIntensity: 0.4
+            });
+            ball = new THREE.Mesh(ballGeo, ballMat);
+            ball.position.set(boardRadius * 0.7, 0.3, 0); // başlangıçta kenara yakın
+            labyrinthGroup.add(ball);
+
+            // Klavye kontrolleri
+            window.addEventListener("keydown", onKeyDown);
+            window.addEventListener("keyup", onKeyUp);
+
+            // Dokunmatik butonlar (okuma bilmeyen çocuklar için)
+            const touchControls = document.getElementById("touchControls");
+            touchControls.addEventListener("touchstart", handleTouch, { passive: false });
+            touchControls.addEventListener("touchend", handleTouchEnd, { passive: false });
+
+            // Kazanma ekranına tıklayınca / dokununca oyunu sıfırla
+            winOverlay.addEventListener("click", resetGame);
+            winOverlay.addEventListener("touchstart", (e) => {
+                e.preventDefault();
+                resetGame();
+            }, { passive: false });
+
+            window.addEventListener("resize", onWindowResize);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function onKeyDown(e) {
+            if (e.code in keys) {
+                keys[e.code] = true;
+            }
+        }
+
+        function onKeyUp(e) {
+            if (e.code in keys) {
+                keys[e.code] = false;
+            }
+        }
+
+        // Dokunmatik kontroller
+        function handleTouch(e) {
+            e.preventDefault();
+            const target = e.target.closest("[data-dir]");
+            if (!target) return;
+            const dir = target.getAttribute("data-dir");
+            if (dir === "up") keys.ArrowUp = true;
+            if (dir === "down") keys.ArrowDown = true;
+            if (dir === "left") keys.ArrowLeft = true;
+            if (dir === "right") keys.ArrowRight = true;
+        }
+
+        function handleTouchEnd(e) {
+            e.preventDefault();
+            // tüm yönleri serbest bırak
+            keys.ArrowUp = keys.ArrowDown = keys.ArrowLeft = keys.ArrowRight = false;
+        }
+
+        function resetGame() {
+            gameWon = false;
+            winOverlay.classList.remove("visible");
+
+            ball.position.set(boardRadius * 0.7, 0.3, 0);
+            ballVelocity.set(0, 0, 0);
+            tiltX = 0;
+            tiltZ = 0;
+            labyrinthGroup.rotation.set(0, 0, 0);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            updateTilt();
+            updateBall();
+
+            renderer.render(scene, camera);
+        }
+
+        function updateTilt() {
+            // Klavye / dokunmatik bilgisine göre eğim açılarını güncelle
+            if (keys.ArrowUp) {
+                tiltX = Math.min(tiltLimit, tiltX + tiltSpeed);
+            }
+            if (keys.ArrowDown) {
+                tiltX = Math.max(-tiltLimit, tiltX - tiltSpeed);
+            }
+            if (keys.ArrowLeft) {
+                tiltZ = Math.min(tiltLimit, tiltZ + tiltSpeed);
+            }
+            if (keys.ArrowRight) {
+                tiltZ = Math.max(-tiltLimit, tiltZ - tiltSpeed);
+            }
+
+            // Platformu döndür
+            labyrinthGroup.rotation.x = tiltX;
+            labyrinthGroup.rotation.z = tiltZ;
+        }
+
+        function updateBall() {
+            // Basit fizik: eğime göre ivme
+            const ax = tiltZ * gravity;   // sağ-sol
+            const az = tiltX * gravity;   // ileri-geri
+
+            ballVelocity.x += ax;
+            ballVelocity.z += az;
+
+            // Sürtünme
+            ballVelocity.multiplyScalar(friction);
+
+            // Pozisyonu güncelle
+            ball.position.x += ballVelocity.x;
+            ball.position.z += ballVelocity.z;
+
+            // Dairesel kenarlara çarpma
+            const dist = Math.sqrt(ball.position.x * ball.position.x + ball.position.z * ball.position.z);
+            const maxDist = boardRadius - ballRadius * 1.1;
+
+            if (dist > maxDist) {
+                const nx = ball.position.x / dist;
+                const nz = ball.position.z / dist;
+
+                // Topu içeri doğru it
+                ball.position.x = nx * maxDist;
+                ball.position.z = nz * maxDist;
+
+                // Hızı yansıt (basit sekme)
+                const dot = ballVelocity.x * nx + ballVelocity.z * nz;
+                if (dot > 0) {
+                    ballVelocity.x -= 1.5 * dot * nx;
+                    ballVelocity.z -= 1.5 * dot * nz;
+                }
+            }
+
+            // Top her zaman platform üstünde kalsın
+            ball.position.y = 0.3;
+
+            // Kazanma kontrolü (merkeze yaklaşınca)
+            if (!gameWon) {
+                const centerDist = Math.sqrt(ball.position.x * ball.position.x + ball.position.z * ball.position.z);
+                if (centerDist < 0.45) {
+                    gameWon = true;
+                    winOverlay.classList.add("visible");
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>

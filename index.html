@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Ahşap Labirent Robotu</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap');
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Fredoka', sans-serif;
+            background-color: #E6E6FA;
+            /* Lavender background */
+            user-select: none;
+        }
+
+        #game-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .header {
+            text-align: center;
+            color: #594a42;
+            text-shadow: 2px 2px 0px #fff;
+            margin-top: 10px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 2rem;
+        }
+
+        p {
+            margin: 5px;
+            font-size: 1.2rem;
+            color: #333;
+            background: rgba(255, 255, 255, 0.6);
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+        }
+
+        .controls {
+            pointer-events: auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            margin-bottom: 30px;
+            gap: 40px;
+        }
+
+        .btn {
+            background: #FFD97D;
+            border: 4px solid #FF9F1C;
+            border-radius: 50%;
+            width: 80px;
+            height: 80px;
+            font-size: 40px;
+            color: #594a42;
+            cursor: pointer;
+            touch-action: manipulation;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: transform 0.1s;
+            box-shadow: 0 6px 0 #c97c10;
+        }
+
+        .btn:active {
+            transform: translateY(4px);
+            box-shadow: none;
+        }
+
+        #start-screen,
+        #win-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(230, 230, 250, 0.9);
+            /* Lavender tint */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            pointer-events: auto;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background: white;
+            padding: 40px;
+            border-radius: 30px;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            border: 5px solid #8B4513;
+            /* Wood color border */
+            max-width: 90%;
+        }
+
+        .big-btn {
+            background: #2EC4B6;
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.5rem;
+            border-radius: 50px;
+            cursor: pointer;
+            font-family: 'Fredoka', sans-serif;
+            margin-top: 20px;
+            box-shadow: 0 6px 0 #1a8a7f;
+            transition: transform 0.1s;
+        }
+
+        .big-btn:active {
+            transform: translateY(6px);
+            box-shadow: none;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        canvas.confetti {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
+    </style>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+                "cannon-es": "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js",
+                "canvas-confetti": "https://cdn.skypack.dev/canvas-confetti"
+            }
+        }
+    </script>
+</head>
+
+<body>
+
+    <div id="game-container"></div>
+
+    <div id="ui-layer">
+        <div class="header">
+            <h1>Labirent Robot</h1>
+            <!-- <p>Direksiyonu çevir, topu deliğe götür!</p> -->
+        </div>
+
+        <div class="controls">
+            <div class="btn" id="btn-left">↺</div>
+            <div class="btn" id="btn-right">↻</div>
+        </div>
+    </div>
+
+    <div id="start-screen">
+        <div class="modal-content">
+            <h1 style="color:#8B4513; font-size: 3rem;">Hoşgeldin!</h1>
+            <p>Labirenti çevirerek topu hedefe ulaştır.</p>
+            <button class="big-btn" id="start-btn">Oyunu Başlat ▶</button>
+        </div>
+    </div>
+
+    <div id="win-screen" class="hidden">
+        <canvas id="confetti-canvas" class="confetti"></canvas>
+        <div class="modal-content">
+            <h1 style="color:#2EC4B6; font-size: 3rem;">Tebrikler! 🎉</h1>
+            <p>Labirenti başarıyla tamamladın.</p>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+            <title>Ahşap Labirent Robotu</title>
+            <style>
+                @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap');
+
+                body {
+                    margin: 0;
+                    overflow: hidden;
+                    font-family: 'Fredoka', sans-serif;
+                    background-color: #E6E6FA;
+                    /* Lavender background */
+                    user-select: none;
+                }
+
+                #game-container {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                }
+
+                #ui-layer {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    pointer-events: none;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: space-between;
+                    padding: 20px;
+                    box-sizing: border-box;
+                }
+
+                .header {
+                    text-align: center;
+                    color: #594a42;
+                    text-shadow: 2px 2px 0px #fff;
+                    margin-top: 10px;
+                }
+
+                h1 {
+                    margin: 0;
+                    font-size: 2rem;
+                }
+
+                p {
+                    margin: 5px;
+                    font-size: 1.2rem;
+                    color: #333;
+                    background: rgba(255, 255, 255, 0.6);
+                    display: inline-block;
+                    padding: 5px 15px;
+                    border-radius: 20px;
+                }
+
+                .controls {
+                    pointer-events: auto;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    width: 100%;
+                    margin-bottom: 30px;
+                    gap: 40px;
+                }
+
+                .btn {
+                    background: #FFD97D;
+                    border: 4px solid #FF9F1C;
+                    border-radius: 50%;
+                    width: 80px;
+                    height: 80px;
+                    font-size: 40px;
+                    color: #594a42;
+                    cursor: pointer;
+                    touch-action: manipulation;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    transition: transform 0.1s;
+                    box-shadow: 0 6px 0 #c97c10;
+                }
+
+                .btn:active {
+                    transform: translateY(4px);
+                    box-shadow: none;
+                }
+
+                #start-screen,
+                #win-screen {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(230, 230, 250, 0.9);
+                    /* Lavender tint */
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
+                    align-items: center;
+                    z-index: 10;
+                    pointer-events: auto;
+                    backdrop-filter: blur(5px);
+                }
+
+                .modal-content {
+                    background: white;
+                    padding: 40px;
+                    border-radius: 30px;
+                    text-align: center;
+                    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+                    border: 5px solid #8B4513;
+                    /* Wood color border */
+                    max-width: 90%;
+                }
+
+                .big-btn {
+                    background: #2EC4B6;
+                    color: white;
+                    border: none;
+                    padding: 15px 40px;
+                    font-size: 1.5rem;
+                    border-radius: 50px;
+                    cursor: pointer;
+                    font-family: 'Fredoka', sans-serif;
+                    margin-top: 20px;
+                    box-shadow: 0 6px 0 #1a8a7f;
+                    transition: transform 0.1s;
+                }
+
+                .big-btn:active {
+                    transform: translateY(6px);
+                    box-shadow: none;
+                }
+
+                .hidden {
+                    display: none !important;
+                }
+
+                canvas.confetti {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    pointer-events: none;
+                    z-index: 100;
+                }
+            </style>
+
+            <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+                "cannon-es": "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js",
+                "canvas-confetti": "https://cdn.skypack.dev/canvas-confetti"
+            }
+        }
+    </script>
+            </head>
+
+            <body>
+
+                <div id="game-container"></div>
+
+                <div id="ui-layer">
+                    <div class="header">
+                        <h1>Labirent Robot</h1>
+                        <p>Direksiyonu çevir, topu deliğe götür!</p>
+                    </div>
+
+                    <div class="controls">
+                        <div class="btn" id="btn-left">↺</div>
+                        <div class="btn" id="btn-right">↻</div>
+                    </div>
+                </div>
+
+                <div id="start-screen">
+                    <div class="modal-content">
+                        <h1 style="color:#8B4513; font-size: 3rem;">Hoşgeldin!</h1>
+                        <p>Labirenti çevirerek topu hedefe ulaştır.</p>
+                        <button class="big-btn" id="start-btn">Oyunu Başlat ▶</button>
+                    </div>
+                </div>
+
+                <div id="win-screen" class="hidden">
+                    <canvas id="confetti-canvas" class="confetti"></canvas>
+                    <div class="modal-content">
+                        <h1 style="color:#2EC4B6; font-size: 3rem;">Tebrikler! 🎉</h1>
+                        <p>Labirenti başarıyla tamamladın.</p>
+                        <button class="big-btn" id="restart-btn">Tekrar Oyna ↺</button>
+                    </div>
+                </div>
+
+                <script type="module">
+                    import * as THREE from 'three';
+                    import * as CANNON from 'cannon-es';
+                    import confetti from 'canvas-confetti';
+
+                    let scene, camera, renderer, world;
+                    let ballMesh, ballBody;
+                    let boardGroup, boardBody;
+                    let standGroup;
+                    let strings = [];
+                    let input = { left: false, right: false };
+                    let currentRotation = 0;
+                    const rotationSpeed = 0.02;
+                    let isGameActive = false;
+
+                    // Maze Design: [Radius, GapStartAngle, GapSize]
+                    // 5 Concentric rings with alternating gaps to create a puzzle path
+                    const mazeDesign = [
+                        [3.0, 90, 45],   // Ring 1 (Inner) - Gap Top
+                        [5.0, 270, 45],  // Ring 2 - Gap Bottom
+                        [7.0, 0, 45],    // Ring 3 - Gap Right
+                        [9.0, 180, 45],  // Ring 4 - Gap Left
+                        // Outer Rim (Ring 5) is handled separately as the board boundary
+                    ];
+
+                    function init() {
+                        scene = new THREE.Scene();
+                        scene.background = new THREE.Color(0xE6E6FA); // Lavender
+                        scene.fog = new THREE.Fog(0xE6E6FA, 20, 60);
+
+                        camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+                        camera.position.set(0, 0, 35); // Front view
+                        camera.lookAt(0, 0, 0);
+
+                        renderer = new THREE.WebGLRenderer({ antialias: true });
+                        renderer.setSize(window.innerWidth, window.innerHeight);
+                        renderer.shadowMap.enabled = true;
+                        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                        document.getElementById('game-container').appendChild(renderer.domElement);
+
+                        // Lighting
+                        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+                        scene.add(ambientLight);
+
+                        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+                        dirLight.position.set(10, 10, 20); // Light from front-top-right
+                        dirLight.castShadow = true;
+                        dirLight.shadow.mapSize.width = 2048;
+                        dirLight.shadow.mapSize.height = 2048;
+                        scene.add(dirLight);
+
+                        // Physics World
+                        world = new CANNON.World();
+                        world.gravity.set(0, -25, 0); // Slightly stronger gravity for responsiveness
+
+                        const woodMaterial = new CANNON.Material('wood');
+                        const ballMaterial = new CANNON.Material('ball');
+                        const glassMaterial = new CANNON.Material('glass');
+
+                        // Realistic Wood-Ball Interaction
+                        const woodBallContact = new CANNON.ContactMaterial(woodMaterial, ballMaterial, {
+                            friction: 0.3,      // Higher friction for wood texture
+                            restitution: 0.2,   // Low bounce (heavy steel ball)
+                            contactEquationStiffness: 1e8,
+                            contactEquationRelaxation: 3
+                        });
+
+                        // Glass-Ball Interaction (Low friction slide)
+                        const glassBallContact = new CANNON.ContactMaterial(glassMaterial, ballMaterial, {
+                            friction: 0.0,
+                            restitution: 0.1
+                        });
+
+                        world.addContactMaterial(woodBallContact);
+                        world.addContactMaterial(glassBallContact);
+
+                        createStand();
+                        createBoard(woodMaterial, glassMaterial);
+                        createBall(ballMaterial);
+                        createStrings();
+
+                        setupInputs();
+                        requestAnimationFrame(animate);
+                    }
+
+                    function createStand() {
+                        standGroup = new THREE.Group();
+
+                        const standMat = new THREE.MeshStandardMaterial({
+                            color: 0xD2B48C,
+                            roughness: 0.8
+                        });
+
+                        // Base
+                        const baseGeo = new THREE.BoxGeometry(14, 1, 10);
+                        const base = new THREE.Mesh(baseGeo, standMat);
+                        base.position.set(0, -12, 0);
+                        base.receiveShadow = true;
+                        standGroup.add(base);
+
+                        // Vertical Post
+                        const postGeo = new THREE.BoxGeometry(4, 14, 2);
+                        const post = new THREE.Mesh(postGeo, standMat);
+                        post.position.set(0, -6, -2);
+                        post.receiveShadow = true;
+                        standGroup.add(post);
+
+                        // Axle
+                        const axleGeo = new THREE.CylinderGeometry(1, 1, 3, 16);
+                        const axle = new THREE.Mesh(axleGeo, standMat);
+                        axle.rotation.x = Math.PI / 2;
+                        axle.position.set(0, 0, -1);
+                        standGroup.add(axle);
+
+                        scene.add(standGroup);
+                    }
+
+                    function createBoard(woodMaterial, glassMaterial) {
+                        boardGroup = new THREE.Group();
+
+                        const boardRadius = 11;
+                        // Main Board (Vertical Cylinder)
+                        const floorGeo = new THREE.CylinderGeometry(boardRadius, boardRadius, 0.5, 64);
+                        const floorMat = new THREE.MeshStandardMaterial({
+                            color: 0xE3C099,
+                            roughness: 0.6
+                        });
+                        const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+                        floorMesh.rotation.x = Math.PI / 2; // Face forward
+                        floorMesh.receiveShadow = true;
+                        floorMesh.castShadow = true;
+                        boardGroup.add(floorMesh);
+
+                        // Physics Body for Board
+                        boardBody = new CANNON.Body({
+                            mass: 0,
+                            type: CANNON.Body.KINEMATIC,
+                            material: woodMaterial
+                        });
+
+                        // Backplate shape
+                        const floorShape = new CANNON.Cylinder(boardRadius, boardRadius, 0.5, 32);
+                        const quat = new CANNON.Quaternion();
+                        quat.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), Math.PI / 2);
+                        boardBody.addShape(floorShape, new CANNON.Vec3(0, 0, 0), quat);
+
+                        // Glass Cover (Invisible physics plane to keep ball in)
+                        const glassShape = new CANNON.Box(new CANNON.Vec3(12, 12, 0.1));
+                        boardBody.addShape(glassShape, new CANNON.Vec3(0, 0, 1.5)); // 1.5 units in front
+
+                        // Outer Rim
+                        createRing(boardRadius - 0.5, boardRadius, 0, 360, 1.5, boardGroup, boardBody);
+
+                        // "Ears" for string attachment
+                        const earGeo = new THREE.CylinderGeometry(1, 1, 0.5, 16);
+                        const earMat = new THREE.MeshStandardMaterial({ color: 0xE3C099 });
+                        const earPositions = [
+                            [boardRadius, 0], [-boardRadius, 0],
+                            [0, boardRadius], [0, -boardRadius]
+                        ];
+
+                        earPositions.forEach((pos, idx) => {
+                            const ear = new THREE.Mesh(earGeo, earMat);
+                            ear.rotation.x = Math.PI / 2;
+                            ear.position.set(pos[0], pos[1], 0);
+                            boardGroup.add(ear);
+
+                            // Hook
+                            const hookGeo = new THREE.TorusGeometry(0.3, 0.05, 8, 16);
+                            const hookMat = new THREE.MeshStandardMaterial({ color: 0x888888 });
+                            const hook = new THREE.Mesh(hookGeo, hookMat);
+                            hook.position.z = 0.3;
+                            ear.add(hook);
+                        });
+
+                        // Maze Walls
+                        mazeDesign.forEach(ring => {
+                            const radius = ring[0];
+                            const gapStart = ring[1];
+                            const gapSize = ring[2];
+                            createWallArc(radius, gapStart + gapSize, gapStart + 360, boardGroup, boardBody);
+                        });
+
+                        // Goal Hole (Visual)
+                        const goalGeo = new THREE.CylinderGeometry(1, 1, 0.1, 32);
+                        const goalMat = new THREE.MeshStandardMaterial({ color: 0xFF595E });
+                        const goalMesh = new THREE.Mesh(goalGeo, goalMat);
+                        goalMesh.rotation.x = Math.PI / 2;
+                        goalMesh.position.z = 0.26;
+                        boardGroup.add(goalMesh);
+                        scene.add(boardGroup);
+                        world.addBody(boardBody);
+                    }
+
+                    function createWallArc(radius, startAngle, endAngle, group, body) {
+                        const thickness = 0.3;
+                        const height = 1.0; // Depth in Z
+                        const segments = 40;
+
+                        const startRad = THREE.MathUtils.degToRad(startAngle);
+                        const endRad = THREE.MathUtils.degToRad(endAngle);
+                        const totalAngle = endRad - startRad;
+                        const step = totalAngle / segments;
+                        const boxW = (2 * Math.PI * radius) * (step / (2 * Math.PI)) + 0.1;
+
+                        const wallMat = new THREE.MeshStandardMaterial({
+                            color: 0x8B4513,
+                            roughness: 0.7
+                        });
+
+                        for (let i = 0; i < segments; i++) {
+                            const angle = startRad + (step * i) + (step / 2);
+                            const x = Math.cos(angle) * radius;
+                            const y = Math.sin(angle) * radius; // Y instead of Z for vertical circle
+
+                            const geo = new THREE.BoxGeometry(boxW, thickness, height); // Swap dimensions for vertical
+                            const mesh = new THREE.Mesh(geo, wallMat);
+                            mesh.position.set(x, y, height / 2);
+                            mesh.rotation.z = angle + Math.PI / 2; // Rotate 90 deg to form ring
+                            mesh.castShadow = true;
+                            group.add(mesh);
+
+                            const shape = new CANNON.Box(new CANNON.Vec3(boxW / 2, thickness / 2, height / 2));
+                            const q = new CANNON.Quaternion();
+                            q.setFromAxisAngle(new CANNON.Vec3(0, 0, 1), angle + Math.PI / 2);
+                            body.addShape(shape, new CANNON.Vec3(x, y, height / 2), q);
+                        }
+                    }
+
+                    function createRing(innerR, outerR, startDeg, endDeg, height, group, body) {
+                        createWallArc((innerR + outerR) / 2, startDeg, endDeg, group, body);
+                    }
+
+                    function createStrings() {
+                        const stringMat = new THREE.LineBasicMaterial({ color: 0xFFFFFF, linewidth: 2 });
+
+                        for (let i = 0; i < 4; i++) {
+                            const geometry = new THREE.BufferGeometry().setFromPoints([
+                                new THREE.Vector3(0, 0, 0),
+                                new THREE.Vector3(0, 0, 0)
+                            ]);
+                            const line = new THREE.Line(geometry, stringMat);
+                            scene.add(line);
+                            strings.push(line);
+                        }
+                    }
+
+                    function updateStrings() {
+                        const boardRadius = 11;
+                        const earOffsets = [
+                            new THREE.Vector3(boardRadius, 0, 0),
+                            new THREE.Vector3(-boardRadius, 0, 0),
+                            new THREE.Vector3(0, boardRadius, 0),
+                            new THREE.Vector3(0, -boardRadius, 0)
+                        ];
+
+                        // Anchor points on the stand/base
+                        const anchors = [
+                            new THREE.Vector3(6, -6, 0),
+                            new THREE.Vector3(-6, -6, 0),
+                            new THREE.Vector3(6, -6, 0), // Top ones also pull down/side
+                            new THREE.Vector3(-6, -6, 0)
+                        ];
+
+                        strings.forEach((line, i) => {
+                            const earPos = earOffsets[i].clone();
+                            earPos.applyQuaternion(boardGroup.quaternion);
+                            earPos.add(boardGroup.position);
+
+                            const positions = line.geometry.attributes.position.array;
+                            positions[0] = earPos.x;
+                            positions[1] = earPos.y;
+                            positions[2] = earPos.z;
+
+                            positions[3] = anchors[i].x;
+                            positions[4] = anchors[i].y;
+                            positions[5] = anchors[i].z;
+
+                            line.geometry.attributes.position.needsUpdate = true;
+                        });
+                    }
+
+                    function createBall(material) {
+                        const radius = 0.5;
+                        const geo = new THREE.SphereGeometry(radius, 32, 32);
+                        const mat = new THREE.MeshStandardMaterial({
+                            color: 0xC0C0C0,
+                            metalness: 0.9,
+                            roughness: 0.1
+                        });
+                        ballMesh = new THREE.Mesh(geo, mat);
+                        ballMesh.castShadow = true;
+                        scene.add(ballMesh);
+
+                        ballBody = new CANNON.Body({
+                            mass: 20, // Heavier ball (20g simulated)
+                            shape: new CANNON.Sphere(radius),
+                            material: material,
+                            linearDamping: 0.1,
+                            angularDamping: 0.5 // Higher damping to prevent infinite rolling
+                        });
+                        ballBody.position.set(9.5, 2, 2.5); // Start at outer ring
+                        world.addBody(ballBody);
+                    }
+
+                    function setupInputs() {
+                        document.addEventListener('keydown', (e) => {
+                            if (e.key === "ArrowLeft") input.left = true;
+                            if (e.key === "ArrowRight") input.right = true;
+                        });
+                        document.addEventListener('keyup', (e) => {
+                            if (e.key === "ArrowLeft") input.left = false;
+                            if (e.key === "ArrowRight") input.right = false;
+                        });
+
+                        const setupBtn = (id, key) => {
+                            const el = document.getElementById(id);
+                            el.addEventListener('mousedown', () => input[key] = true);
+                            el.addEventListener('mouseup', () => input[key] = false);
+                            el.addEventListener('mouseleave', () => input[key] = false);
+                            el.addEventListener('touchstart', (e) => { e.preventDefault(); input[key] = true; }, { passive: false });
+                            el.addEventListener('touchend', (e) => { e.preventDefault(); input[key] = false; }, { passive: false });
+                        };
+
+                        setupBtn('btn-left', 'left');
+                        setupBtn('btn-right', 'right');
+
+                        document.getElementById('start-btn').addEventListener('click', startGame);
+                        document.getElementById('restart-btn').addEventListener('click', restartGame);
+                    }
+
+                    function startGame() {
+                        document.getElementById('start-screen').classList.add('hidden');
+                        isGameActive = true;
+                        resetBall();
+                    }
+
+                    function restartGame() {
+                        document.getElementById('win-screen').classList.add('hidden');
+                        isGameActive = true;
+                        resetBall();
+                    }
+
+                    function resetBall() {
+                        ballBody.position.set(9.5, 0, 0.5);
+                        ballBody.velocity.set(0, 0, 0);
+                        ballBody.angularVelocity.set(0, 0, 0);
+                        currentRotation = 0;
+                    }
+
+                    function checkWin() {
+                        // Check distance to center (0,0)
+                        const dist = Math.sqrt(ballBody.position.x ** 2 + ballBody.position.y ** 2);
+                        if (dist < 1.0 && isGameActive) {
+                            isGameActive = false;
+                            confetti({
+                                particleCount: 150,
+                                spread: 70,
+                                origin: { y: 0.6 }
+                            });
+                            setTimeout(() => {
+                                document.getElementById('win-screen').classList.remove('hidden');
+                            }, 500);
+                        }
+                    }
+
+                    function animate() {
+                        requestAnimationFrame(animate);
+                        const dt = 1 / 60;
+
+                        if (isGameActive) {
+                            // Steering Control
+                            if (input.left) currentRotation += rotationSpeed;
+                            if (input.right) currentRotation -= rotationSpeed;
+
+                            // Apply Rotation to Board
+                            boardBody.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 0, 1), currentRotation);
+                            boardGroup.position.copy(boardBody.position);
+                            boardGroup.quaternion.copy(boardBody.quaternion);
+
+                            world.step(dt);
+                            ballMesh.position.copy(ballBody.position);
+                            ballMesh.quaternion.copy(ballBody.quaternion);
+
+                            updateStrings();
+                            checkWin();
+
+                            // Reset if falls out (shouldn't happen with glass cover, but safe to have)
+                            if (ballBody.position.y < -20) {
+                                resetBall();
+                            }
+                        }
+                        renderer.render(scene, camera);
+                    }
+
+                    window.addEventListener('resize', () => {
+                        camera.aspect = window.innerWidth / window.innerHeight;
+                        camera.updateProjectionMatrix();
+                        renderer.setSize(window.innerWidth, window.innerHeight);
+                    });
+
+                    init();
+                </script>
+            </body>
+
+</html>
